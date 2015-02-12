@@ -20,10 +20,6 @@ import android.content.ContentResolver;
 import android.net.Uri;
 import android.provider.BaseColumns;
 
-/**
- * Field and table name constants for
- * {@link com.example.android.basicsyncadapter.provider.FeedProvider}.
- */
 public class FeedContract {
     private FeedContract() {
     }
@@ -31,7 +27,7 @@ public class FeedContract {
     /**
      * Content provider authority.
      */
-    public static final String CONTENT_AUTHORITY = "com.example.android.basicsyncadapter";
+    public static final String CONTENT_AUTHORITY = "com.example.jake.basesyncadapter";
 
     /**
      * Base URI. (content://com.example.android.basicsyncadapter)

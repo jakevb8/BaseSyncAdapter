@@ -41,27 +41,9 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import com.example.jake.basesyncadapter.provider.FeedContract;
+import com.example.jake.common.accounts.CloudServiceAccountUtils;
 import com.example.jake.common.accounts.GenericAccountService;
 
-/**
- * List fragment containing a list of Atom entry objects (articles) stored in the local database.
- *
- * <p>Database access is mediated by a content provider, specified in
- * {@link com.example.android.basicsyncadapter.provider.FeedProvider}. This content
- * provider is
- * automatically populated by  {@link SyncService}.
- *
- * <p>Selecting an item from the displayed list displays the article in the default browser.
- *
- * <p>If the content provider doesn't return any data, then the first sync hasn't run yet. This sync
- * adapter assumes data exists in the provider once a sync has run. If your app doesn't work like
- * this, you should add a flag that notes if a sync has run, so you can differentiate between "no
- * available data" and "no initial sync", and display this in the UI.
- *
- * <p>The ActionBar displays a "Refresh" button. When the user clicks "Refresh", the sync adapter
- * runs immediately. An indeterminate ProgressBar element is displayed, showing that the sync is
- * occurring.
- */
 public class EntryListFragment extends ListFragment
         implements LoaderManager.LoaderCallbacks<Cursor> {
 
@@ -75,7 +57,7 @@ public class EntryListFragment extends ListFragment
     /**
      * Handle to a SyncObserver. The ProgressBar element is visible until the SyncObserver reports
      * that the sync is complete.
-     *
+     * <p/>
      * <p>This allows us to delete our SyncObserver once the application is no longer in the
      * foreground.
      */
@@ -98,13 +80,21 @@ public class EntryListFragment extends ListFragment
 
     // Column indexes. The index of a column in the Cursor is the same as its relative position in
     // the projection.
-    /** Column index for _ID */
+    /**
+     * Column index for _ID
+     */
     private static final int COLUMN_ID = 0;
-    /** Column index for title */
+    /**
+     * Column index for title
+     */
     private static final int COLUMN_TITLE = 1;
-    /** Column index for link */
+    /**
+     * Column index for link
+     */
     private static final int COLUMN_URL_STRING = 2;
-    /** Column index for published */
+    /**
+     * Column index for published
+     */
     private static final int COLUMN_PUBLISHED = 3;
 
     /**
@@ -126,7 +116,8 @@ public class EntryListFragment extends ListFragment
      * Mandatory empty constructor for the fragment manager to instantiate the
      * fragment (e.g. upon screen orientation changes).
      */
-    public EntryListFragment() {}
+    public EntryListFragment() {
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -136,7 +127,7 @@ public class EntryListFragment extends ListFragment
 
     /**
      * Create SyncAccount at launch, if needed.
-     *
+     * <p/>
      * <p>This will create a new account with the system for our application, register our
      * {@link SyncService} with it, and establish a sync schedule.
      */
@@ -145,7 +136,8 @@ public class EntryListFragment extends ListFragment
         super.onAttach(activity);
 
         // Create account, if needed
-        SyncUtils.CreateSyncAccount(activity);
+        //SyncUtils.CreateSyncAccount(activity);
+        SyncUtils.TriggerRefresh(activity);
     }
 
     @Override
@@ -202,7 +194,7 @@ public class EntryListFragment extends ListFragment
 
     /**
      * Query the content provider for data.
-     *
+     * <p/>
      * <p>Loaders do queries in a background thread. They also provide a ContentObserver that is
      * triggered when data in the content provider changes. When the sync adapter updates the
      * content provider, the ContentObserver responds by resetting the loader and then reloading
@@ -258,7 +250,7 @@ public class EntryListFragment extends ListFragment
         switch (item.getItemId()) {
             // If the user clicks the "Refresh" button.
             case R.id.menu_refresh:
-                SyncUtils.TriggerRefresh();
+                SyncUtils.TriggerRefresh(getActivity().getApplicationContext());
                 return true;
         }
         return super.onOptionsItemSelected(item);
@@ -333,8 +325,8 @@ public class EntryListFragment extends ListFragment
                     // Create a handle to the account that was created by
                     // SyncService.CreateSyncAccount(). This will be used to query the system to
                     // see how the sync status has changed.
-                    Account account = GenericAccountService.GetAccount(SyncUtils.ACCOUNT_TYPE);
-                    if (account == null) {
+                    Account[] accounts = CloudServiceAccountUtils.getAndroidAccounts(getActivity().getApplicationContext());
+                    if (accounts == null || accounts.length == 0) {
                         // GetAccount() returned an invalid value. This shouldn't happen, but
                         // we'll set the status to "not refreshing".
                         setRefreshActionButtonState(false);
@@ -344,9 +336,9 @@ public class EntryListFragment extends ListFragment
                     // Test the ContentResolver to see if the sync adapter is active or pending.
                     // Set the state of the refresh button accordingly.
                     boolean syncActive = ContentResolver.isSyncActive(
-                            account, FeedContract.CONTENT_AUTHORITY);
+                            accounts[0], FeedContract.CONTENT_AUTHORITY);
                     boolean syncPending = ContentResolver.isSyncPending(
-                            account, FeedContract.CONTENT_AUTHORITY);
+                            accounts[0], FeedContract.CONTENT_AUTHORITY);
                     setRefreshActionButtonState(syncActive || syncPending);
                 }
             });

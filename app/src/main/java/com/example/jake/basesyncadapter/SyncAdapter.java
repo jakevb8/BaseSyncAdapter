@@ -34,6 +34,7 @@ import android.util.Log;
 
 
 import com.example.jake.basesyncadapter.net.FeedParser;
+import com.example.jake.basesyncadapter.provider.CloudServicesContract;
 import com.example.jake.basesyncadapter.provider.FeedContract;
 
 import org.xmlpull.v1.XmlPullParserException;
@@ -141,6 +142,14 @@ class SyncAdapter extends AbstractThreadedSyncAdapter {
             InputStream stream = null;
 
             try {
+                Cursor cursor = provider.query(Uri.parse(CloudServicesContract.Browse.CONTENT_URI + "/" + account.name), null, null, null, null);
+                if (cursor.moveToFirst()){
+                    do{
+                        String data = cursor.getString(cursor.getColumnIndex(CloudServicesContract.Browse.TITLE));
+                        Log.d(TAG, data);
+                    }while(cursor.moveToNext());
+                }
+                cursor.close();
                 Log.i(TAG, "Streaming data from network: " + location);
                 stream = downloadUrl(location);
                 updateLocalFeedData(stream, syncResult);

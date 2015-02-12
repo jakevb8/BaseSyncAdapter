@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="add_account_choose_provider">Choose a provider:</string>
+    <string name="google_drive_name">Google Drive™</string>
+    <string name="logging_in">Logging in</string>
+    <string name="log_in_successful">Login successful!</string>
+    <string name="log_in_failed">Login Failed</string>
+</resources>
