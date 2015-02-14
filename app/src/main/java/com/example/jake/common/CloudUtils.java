@@ -29,9 +29,10 @@ import com.example.jake.googledrive.DriveUtils;
 
 
 public class CloudUtils {
-	public static AccountInfo getAccountInfo(CloudProviders cloudProvider, String accessToken) {
+	public static AccountInfo getAccountInfo(CloudProviders cloudProvider, String accessToken, String refreshToken) {
 		AccountInfo accountInfo = new AccountInfo();
 		accountInfo.AccessToken = accessToken;
+        accountInfo.RefreshToken = refreshToken;
         accountInfo.Provider = cloudProvider;
 		switch (cloudProvider) {
 		case GoogleDrive:

@@ -191,7 +191,7 @@ public class OAuth2Activity extends Activity {
 
                                             if (mCloudProvider == CloudProviders.GoogleDrive.ordinal()) {
                                                 accountInfo = CloudUtils.getAccountInfo(
-                                                        CloudProviders.GoogleDrive, response.getAccessToken());
+                                                        CloudProviders.GoogleDrive, response.getAccessToken(), response.getRefreshToken());
 
                                             }
 

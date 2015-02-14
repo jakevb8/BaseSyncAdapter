@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Base64;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
@@ -20,6 +21,7 @@ import com.example.jake.basesyncadapter.CloudProviders;
 
 public class CloudServiceAccountUtils {
     public static final String ACCOUNT_TYPE = "com.example.jake";
+    public static final String KEY_ACCOUNT_ID = "account_id";
     public static final String KEY_ACCOUNT_NAME = "account_name";
     public static final String KEY_ACCESS_TOKEN = "access_token";
     public static final String KEY_REFRESH_TOKEN = "refresh_token";
@@ -30,6 +32,7 @@ public class CloudServiceAccountUtils {
         AccountManager accountManager = AccountManager.get(context);
         Account account = new Account(accountId, ACCOUNT_TYPE);
         Bundle extras = new Bundle();
+        extras.putString(KEY_ACCOUNT_ID, Base64.encodeToString(accountId.getBytes(), Base64.NO_WRAP));
         extras.putString(KEY_ACCOUNT_NAME, accountName);
         extras.putString(KEY_ACCESS_TOKEN, accessToken);
         extras.putString(KEY_REFRESH_TOKEN, refreshToken);
@@ -61,7 +64,7 @@ public class CloudServiceAccountUtils {
     public static AccountInfo getAccount(Context applicationContext, Account account) {
         AccountInfo result = new AccountInfo();
         AccountManager accountManager = AccountManager.get(applicationContext);
-        result.AccountId = account.name;
+        result.AccountId = accountManager.getUserData(account, KEY_ACCOUNT_ID);
         result.AccessToken = accountManager.getUserData(account, KEY_ACCESS_TOKEN);
         result.RefreshToken = accountManager.getUserData(account, KEY_REFRESH_TOKEN);
         result.AccountName = accountManager.getUserData(account, KEY_ACCOUNT_NAME);

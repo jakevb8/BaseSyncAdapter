@@ -60,10 +60,10 @@
             <!-- This intent filter is required. It allows the system to launch our sync service
             as needed. -->
             <intent-filter>
-                <action android:name="jake.content.SyncAdapter" />
+                <action android:name="android.content.SyncAdapter" />
             </intent-filter>
             <!-- This points to a required XML file which describes our SyncAdapter. -->
-            <meta-data android:name="jake.content.SyncAdapter"
+            <meta-data android:name="android.content.SyncAdapter"
                 android:resource="@xml/syncadapter" />
         </service>
 
@@ -82,7 +82,11 @@
             <meta-data android:name="android.accounts.AccountAuthenticator"
                 android:resource="@xml/authenticator" />
         </service>
-
+        <provider
+            android:name=".provider.CloudServicesContentProvider"
+            android:authorities="com.example.jake.provider"
+            android:syncable="true"
+            android:exported="false" />
     </application>
 
 </manifest>

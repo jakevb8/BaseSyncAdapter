@@ -17,6 +17,7 @@
 package com.example.jake.basesyncadapter;
 
 import android.accounts.Account;
+import android.accounts.AccountManager;
 import android.annotation.TargetApi;
 import android.content.AbstractThreadedSyncAdapter;
 import android.content.ContentProviderClient;
@@ -36,6 +37,10 @@ import android.util.Log;
 import com.example.jake.basesyncadapter.net.FeedParser;
 import com.example.jake.basesyncadapter.provider.CloudServicesContract;
 import com.example.jake.basesyncadapter.provider.FeedContract;
+import com.example.jake.common.accounts.AccountInfo;
+import com.example.jake.common.accounts.CloudServiceAccountUtils;
+import com.example.jake.common.db.FileDatabase;
+import com.example.jake.common.db.FilesSqliteOpenHelper;
 
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -101,11 +106,14 @@ class SyncAdapter extends AbstractThreadedSyncAdapter {
     public static final int COLUMN_LINK = 3;
     public static final int COLUMN_PUBLISHED = 4;
 
+    private Context _context;
+
     /**
      * Constructor. Obtains handle to content resolver for later use.
      */
     public SyncAdapter(Context context, boolean autoInitialize) {
         super(context, autoInitialize);
+        _context = context;
         mContentResolver = context.getContentResolver();
     }
 
@@ -115,6 +123,7 @@ class SyncAdapter extends AbstractThreadedSyncAdapter {
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     public SyncAdapter(Context context, boolean autoInitialize, boolean allowParallelSyncs) {
         super(context, autoInitialize, allowParallelSyncs);
+        _context = context;
         mContentResolver = context.getContentResolver();
     }
 
@@ -142,14 +151,11 @@ class SyncAdapter extends AbstractThreadedSyncAdapter {
             InputStream stream = null;
 
             try {
-                Cursor cursor = provider.query(Uri.parse(CloudServicesContract.Browse.CONTENT_URI + "/" + account.name), null, null, null, null);
-                if (cursor.moveToFirst()){
-                    do{
-                        String data = cursor.getString(cursor.getColumnIndex(CloudServicesContract.Browse.TITLE));
-                        Log.d(TAG, data);
-                    }while(cursor.moveToNext());
-                }
-                cursor.close();
+                FileDatabase fileDatabase = new FileDatabase(getContext());
+                AccountInfo accountInfo = CloudServiceAccountUtils.getAccount(_context, account);
+                addFiles(provider, fileDatabase, accountInfo, null);
+                fileDatabase.close();
+
                 Log.i(TAG, "Streaming data from network: " + location);
                 stream = downloadUrl(location);
                 updateLocalFeedData(stream, syncResult);
@@ -188,6 +194,42 @@ class SyncAdapter extends AbstractThreadedSyncAdapter {
         Log.i(TAG, "Network synchronization complete");
     }
 
+    private void addFiles(ContentProviderClient provider, FileDatabase fileDatabase, AccountInfo accountInfo, String parentId) {
+        Cursor cursor = null;
+        try {
+            if (parentId == null) {
+                cursor = provider.query(Uri.parse(CloudServicesContract.Browse.CONTENT_URI + "/" + accountInfo.AccountId), null, null, null, null);
+            }
+            else {
+                cursor = provider.query(Uri.parse(CloudServicesContract.Browse.CONTENT_URI + "/" + accountInfo.AccountId + "/" + parentId), null, null, null, null);
+            }
+            if (cursor != null && cursor.moveToFirst()) {
+                do {
+                    String itemId = cursor.getString(cursor.getColumnIndex(CloudServicesContract.Browse.ITEM_ID));
+                    String title = cursor.getString(cursor.getColumnIndex(CloudServicesContract.Browse.TITLE));
+                    int fileType = cursor.getInt(cursor.getColumnIndex(CloudServicesContract.Browse.TYPE));
+                    switch (fileType) {
+                        case 0:
+                            break;
+                        case 1:
+                            fileDatabase.addFile(itemId, parentId, title);
+                            break;
+                        case 2:
+                            fileDatabase.addFolder(itemId, parentId, title);
+                            addFiles(provider, fileDatabase, accountInfo, itemId);
+                            break;
+                    }
+
+                } while (cursor.moveToNext());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if(cursor != null) {
+                cursor.close();
+            }
+        }
+    }
     /**
      * Read XML from an input stream, storing it into the content provider.
      *

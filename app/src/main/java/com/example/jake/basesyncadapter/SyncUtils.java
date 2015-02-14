@@ -23,6 +23,7 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Bundle;
 
+import com.example.jake.basesyncadapter.provider.CloudServicesContract;
 import com.example.jake.basesyncadapter.provider.FeedContract;
 import com.example.jake.common.accounts.CloudServiceAccountUtils;
 
@@ -93,7 +94,7 @@ public class SyncUtils {
         for (Account account : CloudServiceAccountUtils.getAndroidAccounts(context)) {
             ContentResolver.requestSync(
                     account, // Sync account
-                    FeedContract.CONTENT_AUTHORITY,                 // Content authority
+                    CloudServicesContract.AUTHORITY,                 // Content authority
                     b);                                             // Extras
         }
     }
