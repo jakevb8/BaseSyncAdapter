@@ -44,14 +44,16 @@ public class FileDatabase {
         }
     }
 
-    public List<Entry> getRootEntries() {
-        String where = FilesSqliteOpenHelper.PARENT_ID_COLUMN + " is null";
+    public List<Entry> getRootEntries(String accountId) {
+        String where = FilesSqliteOpenHelper.ACCOUNT_ID_COLUMN + "='" + accountId + "' AND " +
+                FilesSqliteOpenHelper.PARENT_ID_COLUMN + " is null";
         return getEntries(where);
     }
 
-    public Entry getEntry(String entryId) {
+    public Entry getEntry(String accountId, String entryId) {
         Entry result = null;
-        String where = FilesSqliteOpenHelper.FOLDER_ID_COLUMN + " ='" + entryId + "'";
+        String where = FilesSqliteOpenHelper.ACCOUNT_ID_COLUMN + "='" + accountId + "' AND " +
+                FilesSqliteOpenHelper.FOLDER_ID_COLUMN + " ='" + entryId + "'";
         open();
         Cursor cursor = _database.query(FilesSqliteOpenHelper.FOLDERS_TABLE, null, where, null, null, null, null, null);
         cursor.moveToFirst();
@@ -63,8 +65,9 @@ public class FileDatabase {
         return result;
     }
 
-    public List<Entry> getSubEntries(String parentId) {
-        String where = FilesSqliteOpenHelper.PARENT_ID_COLUMN + " ='" + parentId + "'";
+    public List<Entry> getSubEntries(String accountId, String parentId) {
+        String where = FilesSqliteOpenHelper.ACCOUNT_ID_COLUMN + "='" + accountId + "' AND " +
+                FilesSqliteOpenHelper.PARENT_ID_COLUMN + " ='" + parentId + "'";
         return getEntries(where);
     }
 
@@ -92,6 +95,7 @@ public class FileDatabase {
     private Entry getFolderEntry(Cursor cursor) {
         Entry entry = new Entry();
         entry.Id = cursor.getInt(cursor.getColumnIndex(FilesSqliteOpenHelper.ID_COLUMN));
+        entry.AccountId = cursor.getString(cursor.getColumnIndex(FilesSqliteOpenHelper.ACCOUNT_ID_COLUMN));
         entry.EntryId = cursor.getString(cursor.getColumnIndex(FilesSqliteOpenHelper.FOLDER_ID_COLUMN));
         entry.EntryName = cursor.getString(cursor.getColumnIndex(FilesSqliteOpenHelper.FOLDER_NAME_COLUMN));
         entry.ParentId = cursor.getString(cursor.getColumnIndex(FilesSqliteOpenHelper.PARENT_ID_COLUMN));
@@ -102,6 +106,7 @@ public class FileDatabase {
     private Entry getFileEntry(Cursor cursor) {
         Entry entry = new Entry();
         entry.Id = cursor.getInt(cursor.getColumnIndex(FilesSqliteOpenHelper.ID_COLUMN));
+        entry.AccountId = cursor.getString(cursor.getColumnIndex(FilesSqliteOpenHelper.ACCOUNT_ID_COLUMN));
         entry.EntryId = cursor.getString(cursor.getColumnIndex(FilesSqliteOpenHelper.FILE_ID_COLUMN));
         entry.EntryName = cursor.getString(cursor.getColumnIndex(FilesSqliteOpenHelper.FILE_NAME_COLUMN));
         entry.ParentId = cursor.getString(cursor.getColumnIndex(FilesSqliteOpenHelper.PARENT_ID_COLUMN));
@@ -109,13 +114,13 @@ public class FileDatabase {
         return entry;
     }
 
-    public void addFile(String fileId, String parentId, String fileName) {
+    public void addFile(String accountId, String fileId, String parentId, String fileName) {
         try {
-            if (exists(FilesSqliteOpenHelper.FILES_TABLE, FilesSqliteOpenHelper.FILE_ID_COLUMN, fileId)) {
+            if (exists(FilesSqliteOpenHelper.FILES_TABLE, accountId, FilesSqliteOpenHelper.FILE_ID_COLUMN, fileId)) {
                 return;
             }
             open();
-            ContentValues contentValues = FilesSqliteOpenHelper.getFileInsertContentValues(fileId, parentId, fileName);
+            ContentValues contentValues = FilesSqliteOpenHelper.getFileInsertContentValues(accountId, fileId, parentId, fileName);
             long success = _database.insert(FilesSqliteOpenHelper.FILES_TABLE, null, contentValues);
             Log.d(TAG, "Add file, Success=" + success);
         } catch (Exception e) {
@@ -123,13 +128,13 @@ public class FileDatabase {
         }
     }
 
-    public void addFolder(String folderId, String parentId, String fileName) {
+    public void addFolder(String accountId, String folderId, String parentId, String fileName) {
         try {
-            if (exists(FilesSqliteOpenHelper.FOLDERS_TABLE, FilesSqliteOpenHelper.FOLDER_ID_COLUMN, folderId)) {
+            if (exists(FilesSqliteOpenHelper.FOLDERS_TABLE, accountId, FilesSqliteOpenHelper.FOLDER_ID_COLUMN, folderId)) {
                 return;
             }
             open();
-            ContentValues contentValues = FilesSqliteOpenHelper.getFolderInsertContentValues(folderId, parentId, fileName);
+            ContentValues contentValues = FilesSqliteOpenHelper.getFolderInsertContentValues(accountId, folderId, parentId, fileName);
             long success = _database.insert(FilesSqliteOpenHelper.FOLDERS_TABLE, null, contentValues);
             Log.d(TAG, "Add folder, Success=" + success);
         } catch (Exception e) {
@@ -137,11 +142,12 @@ public class FileDatabase {
         }
     }
 
-    public boolean exists(String tableName, String idColumnName, String itemId) {
+    public boolean exists(String tableName, String accountId, String idColumnName, String itemId) {
         open();
         int count = 0;
         try {
-            String countQuery = "SELECT  * FROM " + tableName + " WHERE " + idColumnName + "='" + itemId + "'";
+            String countQuery = "SELECT  * FROM " + tableName + " WHERE " + FilesSqliteOpenHelper.ACCOUNT_ID_COLUMN +
+                    "='" + accountId + "' AND " + idColumnName + "='" + itemId + "'";
             Cursor cursor = _database.rawQuery(countQuery, null);
             count = cursor.getCount();
             cursor.close();

@@ -8,4 +8,8 @@ public class AccountInfo {
     public String AccountName;
     public String RefreshToken;
     public String AccessToken;
+
+    public String getAndroidAccountName() {
+        return Provider.toString() + ":" + AccountName;
+    }
 }

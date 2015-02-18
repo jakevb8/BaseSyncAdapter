@@ -81,8 +81,7 @@ class SyncAdapter extends AbstractThreadedSyncAdapter {
 
             try {
                 FileDatabase fileDatabase = new FileDatabase(getContext());
-                AccountInfo accountInfo = CloudServiceAccountUtils.getAccount(_context, account);
-                addFiles(provider, fileDatabase, accountInfo, null);
+                addFiles(provider, fileDatabase, account, null);
                 fileDatabase.close();
 
                 //Log.i(TAG, "Streaming data from network: " + location);
@@ -121,13 +120,13 @@ class SyncAdapter extends AbstractThreadedSyncAdapter {
         Log.i(TAG, "Network synchronization complete");
     }
 
-    private void addFiles(ContentProviderClient provider, FileDatabase fileDatabase, AccountInfo accountInfo, String parentId) {
+    private void addFiles(ContentProviderClient provider, FileDatabase fileDatabase, Account account, String parentId) {
         Cursor cursor = null;
         try {
             if (parentId == null) {
-                cursor = provider.query(Uri.parse(CloudServicesContract.Browse.CONTENT_URI + "/" + accountInfo.AccountId), null, null, null, null);
+                cursor = provider.query(Uri.parse(CloudServicesContract.Browse.CONTENT_URI + "/" + account.name), null, null, null, null);
             } else {
-                cursor = provider.query(Uri.parse(CloudServicesContract.Browse.CONTENT_URI + "/" + accountInfo.AccountId + "/" + parentId), null, null, null, null);
+                cursor = provider.query(Uri.parse(CloudServicesContract.Browse.CONTENT_URI + "/" + account.name + "/" + parentId), null, null, null, null);
             }
             if (cursor != null && cursor.moveToFirst()) {
                 do {
@@ -138,11 +137,11 @@ class SyncAdapter extends AbstractThreadedSyncAdapter {
                         case 0:
                             break;
                         case 1:
-                            fileDatabase.addFile(itemId, parentId, title);
+                            fileDatabase.addFile(account.name, itemId, parentId, title);
                             break;
                         case 2:
-                            fileDatabase.addFolder(itemId, parentId, title);
-                            addFiles(provider, fileDatabase, accountInfo, itemId);
+                            fileDatabase.addFolder(account.name, itemId, parentId, title);
+                            addFiles(provider, fileDatabase, account, itemId);
                             break;
                     }
 

@@ -15,6 +15,10 @@ public class FileContract {
         public static final int Account = 3;
     }
 
+    public static final String EXTRA_IS_ROOT = "is_root";
+    public static final String EXTRA_PARENT_ID = "parent_id";
+    public static final String EXTRA_PARENT_NAME = "parent_name";
+
     /**
      * Content provider authority.
      */
@@ -63,5 +67,15 @@ public class FileContract {
 
         public static final String[] COLUMNS = new String[]{_ID,
                 COLUMN_NAME_ENTRY_ID, COLUMN_NAME_TITLE, COLUMN_PARENT_ID, COLUMN_FILE_TYPE};
+
+        public static Object[] getValues(int id, String entryId, String title, String parendId, int fileType) {
+            Object[] values = new Object[COLUMNS.length];
+            values[0] = id;
+            values[1] = entryId;
+            values[2] = title;
+            values[3] = parendId;
+            values[4] = fileType;
+            return values;
+        }
     }
 }

@@ -7,6 +7,7 @@ import com.example.jake.basesyncadapter.provider.FileContract;
  */
 public class Entry {
     public int Id;
+    public String AccountId;
     public String EntryId;
     public String EntryName;
     public String ParentId;

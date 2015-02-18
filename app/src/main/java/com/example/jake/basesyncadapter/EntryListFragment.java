@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SyncStatusObserver;
 import android.database.Cursor;
+import android.database.MatrixCursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -19,7 +20,6 @@ import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.widget.SimpleCursorAdapter;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -27,8 +27,10 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ListView;
+import android.widget.TextView;
 
 import com.example.jake.basesyncadapter.provider.FileContract;
+import com.example.jake.common.accounts.AccountInfo;
 import com.example.jake.common.accounts.CloudServiceAccountUtils;
 
 public class EntryListFragment extends ListFragment
@@ -42,20 +44,26 @@ public class EntryListFragment extends ListFragment
     private BroadcastReceiver _backPressedReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if(_parentId != null) {
+            if (_parentId != null) {
                 Bundle bundle = new Bundle();
                 bundle.putString(EXTRA_PARENT_ID, _parentId);
                 getLoaderManager().restartLoader(SUB_DIRECTORY, bundle, EntryListFragment.this);
-            }
-            else {
+            } else if (_inRootFolder) {
                 getLoaderManager().restartLoader(ROOT_DIRECTORY, null, EntryListFragment.this);
+            } else {
+                _accountId = null;
+                loadAccounts();
             }
         }
     };
+
     private SimpleCursorAdapter _adapter;
     private Object _syncObserverHandle;
     private Menu _optionsMenu;
     private String _parentId;
+    private String _accountId;
+    private String _path = "";
+    private boolean _inRootFolder;
 
     /**
      * List of Cursor columns to read from when preparing an adapter to populate the ListView.
@@ -109,23 +117,25 @@ public class EntryListFragment extends ListFragment
         _adapter.setViewBinder(new SimpleCursorAdapter.ViewBinder() {
             @Override
             public boolean setViewValue(View view, Cursor cursor, int i) {
-                Log.d(TAG, "Column: " + i + " type: " + cursor.getType(i));
-//                if (i == COLUMN_PUBLISHED) {
-//                    // Convert timestamp to human-readable date
-//                    Time t = new Time();
-//                    t.set(cursor.getLong(i));
-//                    ((TextView) view).setText(t.format("%Y-%m-%d %H:%M"));
-//                    return true;
-//                } else {
-//                    // Let SimpleCursorAdapter handle other fields automatically
-//                    return false;
-//                }
                 return false;
             }
         });
         setListAdapter(_adapter);
         setEmptyText(getText(R.string.loading));
-        getLoaderManager().initLoader(ROOT_DIRECTORY, null, this);
+        loadAccounts();
+    }
+
+    private void loadAccounts() {
+        _path = "Accounts";
+        EntryListActivity.getInstance().setPathText(_path);
+        MatrixCursor cursor = new MatrixCursor(FileContract.Entry.COLUMNS);
+        int id = 1;
+        for (AccountInfo accountInfo : CloudServiceAccountUtils.getAuthenticatedAccounts(getActivity().getBaseContext())) {
+            cursor.addRow(FileContract.Entry.getValues(id, accountInfo.getAndroidAccountName(), accountInfo.getAndroidAccountName(),
+                    null, FileContract.FileType.Account));
+            id++;
+        }
+        _adapter.changeCursor(cursor);
     }
 
     @Override
@@ -156,11 +166,12 @@ public class EntryListFragment extends ListFragment
         // (It'll be '0', as set in onCreate().)
         switch (which) {
             case ROOT_DIRECTORY:
-                return new CursorLoader(getActivity(), FileContract.Entry.CONTENT_URI, null, null, null, null);
+                return new CursorLoader(getActivity(), Uri.parse(FileContract.Entry.CONTENT_URI + "/"
+                        + _accountId), null, null, null, null);
             case SUB_DIRECTORY:
                 if (bundle.containsKey(EXTRA_PARENT_ID)) {
-                    return new CursorLoader(getActivity(), Uri.parse(FileContract.Entry.CONTENT_URI + "/" +
-                            bundle.getString(EXTRA_PARENT_ID)), null, null, null, null);
+                    return new CursorLoader(getActivity(), Uri.parse(FileContract.Entry.CONTENT_URI + "/" + _accountId + "/"
+                            + bundle.getString(EXTRA_PARENT_ID)), null, null, null, null);
                 }
                 break;
         }
@@ -169,9 +180,15 @@ public class EntryListFragment extends ListFragment
 
     @Override
     public void onLoadFinished(Loader<Cursor> cursorLoader, Cursor cursor) {
-        if(cursor.getExtras() != null && cursor.getExtras().containsKey(FileContract.Entry.COLUMN_PARENT_ID)) {
-            _parentId = cursor.getExtras().getString(FileContract.Entry.COLUMN_PARENT_ID);
+        if (cursor.getExtras().getBoolean(FileContract.EXTRA_IS_ROOT)) {
+            _parentId = null;
+            _inRootFolder = true;
+        } else {
+            _parentId = cursor.getExtras().getString(FileContract.EXTRA_PARENT_ID);
+            _inRootFolder = false;
         }
+        _path += "/" + cursor.getExtras().getString(FileContract.EXTRA_PARENT_NAME);
+        EntryListActivity.getInstance().setPathText(_path);
         _adapter.changeCursor(cursor);
     }
 
@@ -203,7 +220,11 @@ public class EntryListFragment extends ListFragment
         super.onListItemClick(listView, view, position, id);
         Cursor c = (Cursor) _adapter.getItem(position);
         int fileType = c.getInt(c.getColumnIndex(FileContract.Entry.COLUMN_FILE_TYPE));
-        if(fileType == FileContract.FileType.Directory) {
+        if (fileType == FileContract.FileType.Account) {
+            _path = "";
+            _accountId = c.getString(c.getColumnIndex(FileContract.Entry.COLUMN_NAME_ENTRY_ID));
+            getLoaderManager().restartLoader(ROOT_DIRECTORY, null, this);
+        } else if (fileType == FileContract.FileType.Directory) {
             Bundle bundle = new Bundle();
             bundle.putString(EXTRA_PARENT_ID, c.getString(c.getColumnIndex(FileContract.Entry.COLUMN_NAME_ENTRY_ID)));
             getLoaderManager().restartLoader(SUB_DIRECTORY, bundle, this);
@@ -234,9 +255,6 @@ public class EntryListFragment extends ListFragment
             getActivity().runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    // Create a handle to the account that was created by
-                    // SyncService.CreateSyncAccount(). This will be used to query the system to
-                    // see how the sync status has changed.
                     Account[] accounts = CloudServiceAccountUtils.getAndroidAccounts(getActivity().getApplicationContext());
                     if (accounts == null || accounts.length == 0) {
                         // GetAccount() returned an invalid value. This shouldn't happen, but

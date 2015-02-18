@@ -8,6 +8,8 @@ import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
 
+import com.example.jake.common.accounts.AccountInfo;
+import com.example.jake.common.accounts.CloudServiceAccountUtils;
 import com.example.jake.common.db.Entry;
 import com.example.jake.common.db.FileDatabase;
 import com.example.jake.common.db.SelectionBuilder;
@@ -28,8 +30,8 @@ public class FileProvider extends ContentProvider {
     private static final UriMatcher _uriMatcher = new UriMatcher(UriMatcher.NO_MATCH);
 
     static {
-        _uriMatcher.addURI(AUTHORITY, "files", ROOT_ENTRIES);
-        _uriMatcher.addURI(AUTHORITY, "files/*", ENTRIES_ID);
+        _uriMatcher.addURI(AUTHORITY, "files/*", ROOT_ENTRIES);
+        _uriMatcher.addURI(AUTHORITY, "files/*/*", ENTRIES_ID);
     }
 
     private FileDatabase _fileDatabase;
@@ -42,17 +44,29 @@ public class FileProvider extends ContentProvider {
 
     @Override
     public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
-        SelectionBuilder builder = new SelectionBuilder();
         int uriMatch = _uriMatcher.match(uri);
+        if(uri.getPathSegments().size() == 0) {
+            return null;
+        }
+        String accountId = uri.getPathSegments().get(1);
         switch (uriMatch) {
             case ENTRIES_ID:
                 String entryId = uri.getLastPathSegment();
-                Cursor cursor =  getEntryCursor(uri, _fileDatabase.getSubEntries(entryId));
-                Entry entry = _fileDatabase.getEntry(entryId);
-                cursor.getExtras().putString(FileContract.Entry.COLUMN_PARENT_ID, entry.ParentId);
-                return cursor;
+                Cursor entriesCursor =  getEntryCursor(uri, _fileDatabase.getSubEntries(accountId, entryId));
+                Entry entry = _fileDatabase.getEntry(accountId, entryId);
+                entriesCursor.getExtras().putBoolean(FileContract.EXTRA_IS_ROOT, false);
+                entriesCursor.getExtras().putString(FileContract.EXTRA_PARENT_ID, entry.ParentId);
+                if(entry.ParentId == null) {
+                    entriesCursor.getExtras().putBoolean(FileContract.EXTRA_IS_ROOT, true);
+                }
+                entriesCursor.getExtras().putString(FileContract.EXTRA_PARENT_NAME, entry.EntryName);
+                return entriesCursor;
             case ROOT_ENTRIES:
-                return getEntryCursor(uri, _fileDatabase.getRootEntries());
+                Cursor rootCursor = getEntryCursor(uri, _fileDatabase.getRootEntries(accountId));
+                rootCursor.getExtras().putBoolean(FileContract.EXTRA_IS_ROOT, true);
+                AccountInfo accountInfo = CloudServiceAccountUtils.getAccount(getContext(), accountId);
+                rootCursor.getExtras().putString(FileContract.EXTRA_PARENT_NAME, accountInfo.AccountName);
+                return  rootCursor;
             default:
                 throw new UnsupportedOperationException("Unknown uri: " + uri);
         }
@@ -61,13 +75,7 @@ public class FileProvider extends ContentProvider {
     private Cursor getEntryCursor(Uri uri, List<Entry> entries) {
         MatrixCursor result = new MatrixCursor(FileContract.Entry.COLUMNS);
         for (Entry entry : entries) {
-            Object[] values = new Object[FileContract.Entry.COLUMNS.length];
-            values[0] = entry.Id;
-            values[1] = entry.EntryId;
-            values[2] = entry.EntryName;
-            values[3] = entry.ParentId;
-            values[4] = entry.FileType;
-            result.addRow(values);
+            result.addRow(FileContract.Entry.getValues(entry.Id, entry.EntryId, entry.EntryName, entry.ParentId, entry.FileType));
         }
         Context context = getContext();
         assert context != null;

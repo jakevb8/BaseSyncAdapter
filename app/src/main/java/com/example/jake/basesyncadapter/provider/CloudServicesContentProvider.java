@@ -132,7 +132,7 @@ public class CloudServicesContentProvider extends ContentProvider {
     private Cursor getBrowseCursor(List<String> pathSegments) {
         MatrixCursor result = new MatrixCursor(CloudServicesContract.Browse.COLUMNS);
 
-        String accountId = new String(Base64.decode(pathSegments.get(1), Base64.NO_WRAP));
+        String accountId = pathSegments.get(1);
         String folderId = "";
         if (pathSegments.size() > 2) {
             folderId = new String(Base64.decode(pathSegments.get(2), Base64.NO_WRAP));
