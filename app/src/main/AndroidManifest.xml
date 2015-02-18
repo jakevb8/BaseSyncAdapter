@@ -49,7 +49,7 @@
         Since this ContentProvider is not exported, it will not be accessible outside of this app's
         package. -->
         <provider
-            android:name=".provider.FeedProvider"
+            android:name=".provider.FileProvider"
             android:authorities="com.example.jake.basesyncadapter"
             android:exported="false" />
 

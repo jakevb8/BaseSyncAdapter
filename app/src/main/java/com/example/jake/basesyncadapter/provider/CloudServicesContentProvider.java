@@ -11,7 +11,6 @@ import android.util.Base64;
 import com.example.jake.common.CloudFileInfo;
 import com.example.jake.common.CloudFileUrlInfo;
 import com.example.jake.common.CloudUtils;
-import com.example.jake.common.FileTypes;
 import com.example.jake.common.IReadableCloudStorage;
 import com.example.jake.common.StorageQuotaInfo;
 import com.example.jake.common.accounts.AccountInfo;
@@ -148,13 +147,13 @@ public class CloudServicesContentProvider extends ContentProvider {
             values[1] = cloudFileInfo.Title;
             switch (cloudFileInfo.Type) {
                 case 0:
-                    values[2] = 0;//FileTypes.Unknown.ordinal();
+                    values[2] = FileContract.FileType.Unknown;
                     break;
                 case 1:
-                    values[2] = 1;//FileTypes.File.ordinal();
+                    values[2] = FileContract.FileType.File;
                     break;
                 case 2:
-                    values[2] = 2;//FileTypes.Directory.ordinal();
+                    values[2] = FileContract.FileType.Directory;
                     break;
             }
             values[3] = cloudFileInfo.Size;

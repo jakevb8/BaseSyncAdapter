@@ -1,26 +1,13 @@
-/*
- * Copyright 2013 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.example.jake.basesyncadapter;
 
 import android.accounts.Account;
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SyncStatusObserver;
 import android.database.Cursor;
 import android.net.Uri;
@@ -30,79 +17,52 @@ import android.support.v4.app.ListFragment;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.widget.SimpleCursorAdapter;
-import android.text.format.Time;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ListView;
-import android.widget.TextView;
 
-import com.example.jake.basesyncadapter.provider.FeedContract;
+import com.example.jake.basesyncadapter.provider.FileContract;
 import com.example.jake.common.accounts.CloudServiceAccountUtils;
-import com.example.jake.common.accounts.GenericAccountService;
 
 public class EntryListFragment extends ListFragment
         implements LoaderManager.LoaderCallbacks<Cursor> {
 
     private static final String TAG = "EntryListFragment";
+    private static final int ROOT_DIRECTORY = 0;
+    private static final int SUB_DIRECTORY = 1;
+    private static final String EXTRA_PARENT_ID = "parent_id";
 
-    /**
-     * Cursor adapter for controlling ListView results.
-     */
-    private SimpleCursorAdapter mAdapter;
-
-    /**
-     * Handle to a SyncObserver. The ProgressBar element is visible until the SyncObserver reports
-     * that the sync is complete.
-     * <p/>
-     * <p>This allows us to delete our SyncObserver once the application is no longer in the
-     * foreground.
-     */
-    private Object mSyncObserverHandle;
-
-    /**
-     * Options menu used to populate ActionBar.
-     */
-    private Menu mOptionsMenu;
-
-    /**
-     * Projection for querying the content provider.
-     */
-    private static final String[] PROJECTION = new String[]{
-            FeedContract.Entry._ID,
-            FeedContract.Entry.COLUMN_NAME_TITLE,
-            FeedContract.Entry.COLUMN_NAME_LINK,
-            FeedContract.Entry.COLUMN_NAME_PUBLISHED
+    private BroadcastReceiver _backPressedReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if(_parentId != null) {
+                Bundle bundle = new Bundle();
+                bundle.putString(EXTRA_PARENT_ID, _parentId);
+                getLoaderManager().restartLoader(SUB_DIRECTORY, bundle, EntryListFragment.this);
+            }
+            else {
+                getLoaderManager().restartLoader(ROOT_DIRECTORY, null, EntryListFragment.this);
+            }
+        }
     };
-
-    // Column indexes. The index of a column in the Cursor is the same as its relative position in
-    // the projection.
-    /**
-     * Column index for _ID
-     */
-    private static final int COLUMN_ID = 0;
-    /**
-     * Column index for title
-     */
-    private static final int COLUMN_TITLE = 1;
-    /**
-     * Column index for link
-     */
-    private static final int COLUMN_URL_STRING = 2;
-    /**
-     * Column index for published
-     */
-    private static final int COLUMN_PUBLISHED = 3;
+    private SimpleCursorAdapter _adapter;
+    private Object _syncObserverHandle;
+    private Menu _optionsMenu;
+    private String _parentId;
 
     /**
      * List of Cursor columns to read from when preparing an adapter to populate the ListView.
      */
     private static final String[] FROM_COLUMNS = new String[]{
-            FeedContract.Entry.COLUMN_NAME_TITLE,
-            FeedContract.Entry.COLUMN_NAME_PUBLISHED
+            FileContract.Entry.COLUMN_NAME_TITLE,
+            FileContract.Entry.COLUMN_NAME_ENTRY_ID
     };
 
     /**
@@ -112,39 +72,33 @@ public class EntryListFragment extends ListFragment
             android.R.id.text1,
             android.R.id.text2};
 
-    /**
-     * Mandatory empty constructor for the fragment manager to instantiate the
-     * fragment (e.g. upon screen orientation changes).
-     */
     public EntryListFragment() {
     }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setHasOptionsMenu(true);
+        SyncUtils.addPeriodicRefresh(getActivity());
     }
 
-    /**
-     * Create SyncAccount at launch, if needed.
-     * <p/>
-     * <p>This will create a new account with the system for our application, register our
-     * {@link SyncService} with it, and establish a sync schedule.
-     */
     @Override
     public void onAttach(Activity activity) {
         super.onAttach(activity);
 
-        // Create account, if needed
-        //SyncUtils.CreateSyncAccount(activity);
         SyncUtils.TriggerRefresh(activity);
+    }
+
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        setHasOptionsMenu(true);
+        return super.onCreateView(inflater, container, savedInstanceState);
     }
 
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        mAdapter = new SimpleCursorAdapter(
+        _adapter = new SimpleCursorAdapter(
                 getActivity(),       // Current context
                 android.R.layout.simple_list_item_activated_2,  // Layout for individual rows
                 null,                // Cursor
@@ -152,24 +106,26 @@ public class EntryListFragment extends ListFragment
                 TO_FIELDS,           // Layout fields to use
                 0                    // No flags
         );
-        mAdapter.setViewBinder(new SimpleCursorAdapter.ViewBinder() {
+        _adapter.setViewBinder(new SimpleCursorAdapter.ViewBinder() {
             @Override
             public boolean setViewValue(View view, Cursor cursor, int i) {
-                if (i == COLUMN_PUBLISHED) {
-                    // Convert timestamp to human-readable date
-                    Time t = new Time();
-                    t.set(cursor.getLong(i));
-                    ((TextView) view).setText(t.format("%Y-%m-%d %H:%M"));
-                    return true;
-                } else {
-                    // Let SimpleCursorAdapter handle other fields automatically
-                    return false;
-                }
+                Log.d(TAG, "Column: " + i + " type: " + cursor.getType(i));
+//                if (i == COLUMN_PUBLISHED) {
+//                    // Convert timestamp to human-readable date
+//                    Time t = new Time();
+//                    t.set(cursor.getLong(i));
+//                    ((TextView) view).setText(t.format("%Y-%m-%d %H:%M"));
+//                    return true;
+//                } else {
+//                    // Let SimpleCursorAdapter handle other fields automatically
+//                    return false;
+//                }
+                return false;
             }
         });
-        setListAdapter(mAdapter);
+        setListAdapter(_adapter);
         setEmptyText(getText(R.string.loading));
-        getLoaderManager().initLoader(0, null, this);
+        getLoaderManager().initLoader(ROOT_DIRECTORY, null, this);
     }
 
     @Override
@@ -180,71 +136,57 @@ public class EntryListFragment extends ListFragment
         // Watch for sync state changes
         final int mask = ContentResolver.SYNC_OBSERVER_TYPE_PENDING |
                 ContentResolver.SYNC_OBSERVER_TYPE_ACTIVE;
-        mSyncObserverHandle = ContentResolver.addStatusChangeListener(mask, mSyncStatusObserver);
+        _syncObserverHandle = ContentResolver.addStatusChangeListener(mask, mSyncStatusObserver);
+        LocalBroadcastManager.getInstance(getActivity()).registerReceiver(_backPressedReceiver, new IntentFilter(EntryListActivity.ACTION_BACK_PRESSED));
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        if (mSyncObserverHandle != null) {
-            ContentResolver.removeStatusChangeListener(mSyncObserverHandle);
-            mSyncObserverHandle = null;
+        if (_syncObserverHandle != null) {
+            ContentResolver.removeStatusChangeListener(_syncObserverHandle);
+            _syncObserverHandle = null;
         }
+        LocalBroadcastManager.getInstance(getActivity()).unregisterReceiver(_backPressedReceiver);
     }
 
-    /**
-     * Query the content provider for data.
-     * <p/>
-     * <p>Loaders do queries in a background thread. They also provide a ContentObserver that is
-     * triggered when data in the content provider changes. When the sync adapter updates the
-     * content provider, the ContentObserver responds by resetting the loader and then reloading
-     * it.
-     */
     @Override
-    public Loader<Cursor> onCreateLoader(int i, Bundle bundle) {
+    public Loader<Cursor> onCreateLoader(int which, Bundle bundle) {
         // We only have one loader, so we can ignore the value of i.
         // (It'll be '0', as set in onCreate().)
-        return new CursorLoader(getActivity(),  // Context
-                FeedContract.Entry.CONTENT_URI, // URI
-                PROJECTION,                // Projection
-                null,                           // Selection
-                null,                           // Selection args
-                FeedContract.Entry.COLUMN_NAME_PUBLISHED + " desc"); // Sort
+        switch (which) {
+            case ROOT_DIRECTORY:
+                return new CursorLoader(getActivity(), FileContract.Entry.CONTENT_URI, null, null, null, null);
+            case SUB_DIRECTORY:
+                if (bundle.containsKey(EXTRA_PARENT_ID)) {
+                    return new CursorLoader(getActivity(), Uri.parse(FileContract.Entry.CONTENT_URI + "/" +
+                            bundle.getString(EXTRA_PARENT_ID)), null, null, null, null);
+                }
+                break;
+        }
+        return null;
     }
 
-    /**
-     * Move the Cursor returned by the query into the ListView adapter. This refreshes the existing
-     * UI with the data in the Cursor.
-     */
     @Override
     public void onLoadFinished(Loader<Cursor> cursorLoader, Cursor cursor) {
-        mAdapter.changeCursor(cursor);
+        if(cursor.getExtras() != null && cursor.getExtras().containsKey(FileContract.Entry.COLUMN_PARENT_ID)) {
+            _parentId = cursor.getExtras().getString(FileContract.Entry.COLUMN_PARENT_ID);
+        }
+        _adapter.changeCursor(cursor);
     }
 
-    /**
-     * Called when the ContentObserver defined for the content provider detects that data has
-     * changed. The ContentObserver resets the loader, and then re-runs the loader. In the adapter,
-     * set the Cursor value to null. This removes the reference to the Cursor, allowing it to be
-     * garbage-collected.
-     */
     @Override
     public void onLoaderReset(Loader<Cursor> cursorLoader) {
-        mAdapter.changeCursor(null);
+        _adapter.changeCursor(null);
     }
 
-    /**
-     * Create the ActionBar.
-     */
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         super.onCreateOptionsMenu(menu, inflater);
-        mOptionsMenu = menu;
+        _optionsMenu = menu;
         inflater.inflate(R.menu.main, menu);
     }
 
-    /**
-     * Respond to user gestures on the ActionBar.
-     */
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
@@ -256,46 +198,26 @@ public class EntryListFragment extends ListFragment
         return super.onOptionsItemSelected(item);
     }
 
-    /**
-     * Load an article in the default browser when selected by the user.
-     */
     @Override
     public void onListItemClick(ListView listView, View view, int position, long id) {
         super.onListItemClick(listView, view, position, id);
-
-        // Get a URI for the selected item, then start an Activity that displays the URI. Any
-        // Activity that filters for ACTION_VIEW and a URI can accept this. In most cases, this will
-        // be a browser.
-
-        // Get the item at the selected position, in the form of a Cursor.
-        Cursor c = (Cursor) mAdapter.getItem(position);
-        // Get the link to the article represented by the item.
-        String articleUrlString = c.getString(COLUMN_URL_STRING);
-        if (articleUrlString == null) {
-            Log.e(TAG, "Attempt to launch entry with null link");
-            return;
+        Cursor c = (Cursor) _adapter.getItem(position);
+        int fileType = c.getInt(c.getColumnIndex(FileContract.Entry.COLUMN_FILE_TYPE));
+        if(fileType == FileContract.FileType.Directory) {
+            Bundle bundle = new Bundle();
+            bundle.putString(EXTRA_PARENT_ID, c.getString(c.getColumnIndex(FileContract.Entry.COLUMN_NAME_ENTRY_ID)));
+            getLoaderManager().restartLoader(SUB_DIRECTORY, bundle, this);
         }
-
-        Log.i(TAG, "Opening URL: " + articleUrlString);
-        // Get a Uri object for the URL string
-        Uri articleURL = Uri.parse(articleUrlString);
-        Intent i = new Intent(Intent.ACTION_VIEW, articleURL);
-        startActivity(i);
     }
 
-    /**
-     * Set the state of the Refresh button. If a sync is active, turn on the ProgressBar widget.
-     * Otherwise, turn it off.
-     *
-     * @param refreshing True if an active sync is occuring, false otherwise
-     */
+
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     public void setRefreshActionButtonState(boolean refreshing) {
-        if (mOptionsMenu == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+        if (_optionsMenu == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
             return;
         }
 
-        final MenuItem refreshItem = mOptionsMenu.findItem(R.id.menu_refresh);
+        final MenuItem refreshItem = _optionsMenu.findItem(R.id.menu_refresh);
         if (refreshItem != null) {
             if (refreshing) {
                 refreshItem.setActionView(R.layout.actionbar_indeterminate_progress);
@@ -305,21 +227,11 @@ public class EntryListFragment extends ListFragment
         }
     }
 
-    /**
-     * Crfate a new anonymous SyncStatusObserver. It's attached to the app's ContentResolver in
-     * onResume(), and removed in onPause(). If status changes, it sets the state of the Refresh
-     * button. If a sync is active or pending, the Refresh button is replaced by an indeterminate
-     * ProgressBar; otherwise, the button itself is displayed.
-     */
     private SyncStatusObserver mSyncStatusObserver = new SyncStatusObserver() {
         /** Callback invoked with the sync adapter status changes. */
         @Override
         public void onStatusChanged(int which) {
             getActivity().runOnUiThread(new Runnable() {
-                /**
-                 * The SyncAdapter runs on a background thread. To update the UI, onStatusChanged()
-                 * runs on the UI thread.
-                 */
                 @Override
                 public void run() {
                     // Create a handle to the account that was created by
@@ -336,9 +248,9 @@ public class EntryListFragment extends ListFragment
                     // Test the ContentResolver to see if the sync adapter is active or pending.
                     // Set the state of the refresh button accordingly.
                     boolean syncActive = ContentResolver.isSyncActive(
-                            accounts[0], FeedContract.CONTENT_AUTHORITY);
+                            accounts[0], FileContract.CONTENT_AUTHORITY);
                     boolean syncPending = ContentResolver.isSyncPending(
-                            accounts[0], FeedContract.CONTENT_AUTHORITY);
+                            accounts[0], FileContract.CONTENT_AUTHORITY);
                     setRefreshActionButtonState(syncActive || syncPending);
                 }
             });

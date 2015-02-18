@@ -58,6 +58,8 @@ public class OAuth2Utils {
         try {
             OAuth2TokenResponse response = request.execute();
             CloudServiceAccountUtils.updateTokens(context, accountInfo, response.getAccessToken(), response.getRefreshToken());
+            accountInfo.AccessToken = response.getAccessToken();
+            accountInfo.RefreshToken = response.getRefreshToken();
         } catch (IOException e) {
             e.printStackTrace();
         }

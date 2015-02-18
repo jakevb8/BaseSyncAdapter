@@ -19,6 +19,5 @@ limitations under the License.
     <item android:id="@+id/menu_refresh"
           android:icon="@drawable/ic_action_refresh"
           android:title="@string/description_refresh"
-          android:orderInCategory="1"
-          android:showAsAction="always" />
+          android:orderInCategory="1"/>
 </menu>

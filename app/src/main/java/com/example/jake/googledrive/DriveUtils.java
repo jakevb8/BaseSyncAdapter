@@ -484,6 +484,7 @@ public class DriveUtils {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
+            return true;
         }
         return false;
     }
